@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Work Requests — Connect Control{% endblock %}
+{% block content %}
+<h1>Work Requests</h1>
+{% if not available %}
+<div class="banner">
+  <strong>Surface degraded:</strong> {{ unavailable_reason }}.
+  Work Request creation and status need the governance store; nothing here is faked.
+</div>
+{% else %}
+<p>Creation is the control plane's one mutation: every Work Request is evaluated
+by the governance kernel (<code>work_request.create</code>) before anything is
+written, and a refusal persists nothing.</p>
+
+<h2>Create a Work Request</h2>
+<form id="create-form">
+  <p><label>Work Request id <input name="work_request_id" required></label></p>
+  <p><label>Owner organization id <input name="owner_organization_id" required></label></p>
+  <p><label>Workspace id <input name="workspace_id" required></label></p>
+  <p><label>Created by principal id <input name="created_by_principal_id" required></label></p>
+  <p><label>Governance (JSON) <input name="governance" value="{}"></label></p>
+  <p><label>Budget ceiling USD <input name="budget_ceiling_usd"></label></p>
+  <button type="submit">Create (kernel-evaluated)</button>
+</form>
+<pre id="create-result"></pre>
+<script>
+document.getElementById("create-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const payload = {
+    work_request_id: form.work_request_id.value,
+    owner_organization_id: form.owner_organization_id.value,
+    workspace_id: form.workspace_id.value,
+    created_by_principal_id: form.created_by_principal_id.value,
+    governance: JSON.parse(form.governance.value || "{}"),
+  };
+  if (form.budget_ceiling_usd.value) {
+    payload.budget_ceiling_usd = Number(form.budget_ceiling_usd.value);
+  }
+  const response = await fetch("/work-requests", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  });
+  document.getElementById("create-result").textContent =
+    response.status + "\n" + JSON.stringify(await response.json(), null, 2);
+  if (response.status === 201) { location.reload(); }
+});
+</script>
+
+<h2>Recent Work Requests</h2>
+{% if work_requests %}
+<table>
+  <tr><th>id</th><th>organization</th><th>workspace</th><th>created by</th><th>recorded at</th><th></th></tr>
+  {% for wr in work_requests %}
+  <tr>
+    <td><code>{{ wr.id }}</code></td>
+    <td>{{ wr.owner_organization_id }}</td>
+    <td>{{ wr.workspace_id }}</td>
+    <td>{{ wr.created_by_principal_id }}</td>
+    <td>{{ wr.recorded_at }}</td>
+    <td><a href="/work-requests/{{ wr.id }}">status</a> ·
+        <a href="/audit/{{ wr.id }}">audit trail</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No Work Requests recorded yet.</p>
+{% endif %}
+{% endif %}
+{% endblock %}
