@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import pytest
+
+pytest.importorskip("connect_governance", reason="audit extra not installed")
+
 from fastapi.testclient import TestClient
 
 from connect_control.app import create_app
