@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Marketplace — Connect Control{% endblock %}
+{% block content %}
+<h1>Marketplace &amp; provider activation</h1>
+<p>Minimal surface for R7 — the full marketplace is R8. Everything here is
+read-only and reports exactly what it observed.</p>
+
+<h2>ToolConnect health (live probe)</h2>
+{% if health and health.reachable %}
+<p class="ok">Reachable — HTTP {{ health.status_code }}</p>
+<pre>{{ health.body | tojson(indent=2) }}</pre>
+{% else %}
+<p class="degraded">ToolConnect unreachable: {{ health.error if health else "no client configured" }}</p>
+{% endif %}
+
+<h2>Catalog</h2>
+{% if catalog and catalog.reachable %}
+<p>HTTP {{ catalog.status_code }} from <code>/catalog</code>:</p>
+<pre>{{ catalog.body | tojson(indent=2) }}</pre>
+{% else %}
+<p class="degraded">Catalog unread: {{ catalog.error if catalog else "no client configured" }}</p>
+{% endif %}
+
+<h2>Provider activation (grants issued for provider_id=toolconnect)</h2>
+{% if not activation.configured %}
+<p class="degraded">Degraded: {{ activation.reason }}</p>
+{% elif activation.error %}
+<p class="degraded">{{ activation.error }}</p>
+{% elif activation.grants %}
+<table>
+  <tr><th>grant id</th><th>decision</th><th>issuer key</th><th>issued at</th><th>window</th></tr>
+  {% for grant in activation.grants %}
+  <tr>
+    <td><a href="/audit/{{ grant.id }}"><code>{{ grant.id }}</code></a></td>
+    <td><a href="/decisions/{{ grant.decision_record_id }}"><code>{{ grant.decision_record_id }}</code></a></td>
+    <td><code>{{ grant.issuer_key_id }}</code></td>
+    <td>{{ grant.issued_at }}</td>
+    <td>{{ grant.not_before or "—" }} → {{ grant.not_after or "—" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No execution grants issued to the toolconnect provider yet.</p>
+{% endif %}
+
+<h2>Revocation list (ADR-052)</h2>
+{% if revocation_meta.configured and revocation_meta.list_id %}
+<p>ToolConnect has loaded revocation list <code>{{ revocation_meta.list_id }}</code>
+issued at {{ revocation_meta.issued_at }}.</p>
+{% elif revocation_meta.configured %}
+<p>ToolConnect reports no revocation list loaded.</p>
+{% else %}
+<p class="degraded">{{ revocation_meta.reason }}</p>
+{% endif %}
+{% if activation.configured and activation.revocation_lists %}
+<p>Issued lists recorded by governance:</p>
+<table>
+  <tr><th>list id</th><th>issuer key</th><th>issued at</th><th>supersedes</th></tr>
+  {% for rl in activation.revocation_lists %}
+  <tr><td><code>{{ rl.list_id }}</code></td><td><code>{{ rl.issuer_key_id }}</code></td>
+      <td>{{ rl.issued_at }}</td><td><code>{{ rl.supersedes or "—" }}</code></td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}
