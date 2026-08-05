@@ -18,6 +18,32 @@ state.
       read-only plane-client stubs, honest 501s for mutation routes.
 - [x] Smoke tests (11 passing) covering the scaffold's honesty properties.
 
+## R7 — the four UI surfaces + linked audit trail ✅ done (2026-08)
+
+The ecosystem's R7 milestone landed here ahead of the C1–C4 ordering (the
+roadmap language places S1/S4 around C1 and S3 around C4; the milestone
+pulled them together):
+
+- [x] **S1 Work Request creation and status** (`/work-requests`) — the app's
+      first mutation, and still its only one: kernel-evaluated, fail-closed,
+      through Connect-Governance's intake in-process (the documented Option-B
+      exception, see ARCHITECTURE.md). Not the plane-proxy path — that stays
+      501 for everything.
+- [x] **S2 Decision and explanation** (`/decisions/{record_id}`) — read-only
+      rehydration + pure on-read explanation.
+- [x] **S3 Marketplace and provider activation, minimal** (`/marketplace`) —
+      ToolConnect catalog/health reads + grant-derived activation status +
+      ADR-052 revocation-list meta. Full marketplace stays R8 (= C4).
+- [x] **S4 Linked audit trail** (`/audit/{identifier}`) — single-identifier
+      join across the governance/AgentConnect/ToolConnect stores (read-only
+      audit projection, Option B), chains verified on read, rendered as a
+      timeline; degraded surfaces labeled, never faked.
+- [x] Tests: 11 scaffold smoke tests + seeded end-to-end R7 tests (join,
+      tamper detection, honest degradation, S1 happy/denial, S2 render, S4
+      ordering).
+- Expiry owed: replace the audit projection's direct reads with per-plane
+      record-read HTTP APIs (**R8/R9**, Option A), then delete the exception.
+
 ## C1 — read-only workspace & planes status dashboard *(not built)*
 
 - Live plane health and version display, built on the C0 probes.
