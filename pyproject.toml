@@ -13,11 +13,25 @@ dependencies = [
     "fastapi>=0.110",
     "httpx>=0.27",
     "uvicorn>=0.29",
+    # R7: server-rendered UI for the four surfaces (disclosed new dependency).
+    "jinja2>=3.1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+]
+# R7: the four surfaces and the audit projection import the sibling planes'
+# own libraries in-process (the documented Option-B exception). Without this
+# extra the app still runs: every surface degrades honestly and says why.
+# Full functionality needs these packages at a release that includes the R7
+# work (see README "R7 dependencies" for the merge-order note).
+audit = [
+    # [app] pulls the governance persistence layer (SQLAlchemy) the intake
+    # and read paths import.
+    "connect-governance[app]",
+    "agentconnect-core",
+    "toolconnect",
 ]
 
 [project.scripts]
@@ -25,6 +39,9 @@ connect-control = "connect_control.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+connect_control = ["ui/templates/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
