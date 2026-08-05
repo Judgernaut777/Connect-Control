@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Work Request {{ work_request.id }} — Connect Control{% endblock %}
+{% block content %}
+<h1>Work Request <code>{{ work_request.id }}</code></h1>
+<p><a href="/audit/{{ work_request.id }}">Open the linked audit trail</a></p>
+<table>
+  <tr><th>owner organization</th><td>{{ work_request.owner_organization_id }}</td></tr>
+  <tr><th>workspace</th><td>{{ work_request.workspace_id }}</td></tr>
+  <tr><th>created by</th><td>{{ work_request.created_by_principal_id }}</td></tr>
+  <tr><th>recorded at</th><td>{{ work_request.recorded_at }}</td></tr>
+</table>
+
+<h2>Revisions (append-only)</h2>
+{% for rev in revisions %}
+<h3>Revision {{ rev.revision_number }} — <code>{{ rev.state_revision }}</code></h3>
+<table>
+  <tr><th>recorded at</th><td>{{ rev.recorded_at }}</td></tr>
+  <tr><th>granted authorities</th><td><code>{{ rev.granted_authorities }}</code></td></tr>
+  <tr><th>budget ceiling</th><td>{{ rev.budget_ceiling_usd or "—" }}</td></tr>
+  <tr><th>governance</th><td><pre>{{ rev.governance_json }}</pre></td></tr>
+</table>
+{% endfor %}
+
+<h2>Decision Records naming this Work Request</h2>
+{% if decisions %}
+<table>
+  <tr><th>id</th><th>outcome</th><th>evaluated at</th><th>correlation</th><th></th></tr>
+  {% for dec in decisions %}
+  <tr>
+    <td><code>{{ dec.id }}</code></td>
+    <td>{{ dec.outcome }}</td>
+    <td>{{ dec.evaluated_at }}</td>
+    <td><code>{{ dec.correlation_id or "—" }}</code></td>
+    <td><a href="/decisions/{{ dec.id }}">decision + explanation</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<p>None.</p>{% endif %}
+
+<h2>Execution grants issued under this Work Request</h2>
+{% if grants %}
+<table>
+  <tr><th>grant id</th><th>provider</th><th>issuer key</th><th>issued at</th><th>decision</th></tr>
+  {% for grant in grants %}
+  <tr>
+    <td><code>{{ grant.id }}</code></td>
+    <td>{{ grant.provider_id }}</td>
+    <td><code>{{ grant.issuer_key_id }}</code></td>
+    <td>{{ grant.issued_at }}</td>
+    <td><a href="/decisions/{{ grant.decision_record_id }}"><code>{{ grant.decision_record_id }}</code></a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<p>None.</p>{% endif %}
+{% endblock %}
