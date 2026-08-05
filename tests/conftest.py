@@ -11,7 +11,10 @@ The fixed governance test keypair below is the same fixture key
 Connect-Governance's own grant tests publish (private key material in a test
 fixture is deliberate: it makes the signed artifacts reproducible).
 
-Tests skip — they do not fail — when the sibling packages are not installed.
+This conftest is importable WITHOUT the audit extra: every sibling import is
+lazy, inside the seed functions. Test modules that need the siblings skip
+themselves with ``pytest.importorskip`` at module top — the standard idiom,
+so a dev-only install collects cleanly (skips, never a collection error).
 """
 
 from __future__ import annotations
@@ -19,33 +22,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
-pytest.importorskip("connect_governance", reason="audit extra not installed")
-pytest.importorskip("agentconnect.core", reason="audit extra not installed")
-pytest.importorskip("toolconnect", reason="audit extra not installed")
-
-from agentconnect.core import AgentConnectService, CreateTaskRequest  # noqa: E402
-from agentconnect.core.execution_record_store import (  # noqa: E402
-    ExecutionRecordLedger,
-)
-from agentconnect.core.execution_records import (  # noqa: E402
-    ExecutorIdentity,
-    ProviderEnforcementRef,
-    ToolIdentity,
-    build_execution_record,
-)
-from connect_governance.db.models import ExecutionGrantRecord  # noqa: E402
-from connect_governance.db.session import (  # noqa: E402
-    create_all,
-    make_engine,
-    session_factory,
-)
-from connect_governance.genesis import GenesisRequest, initialize_deployment  # noqa: E402
-from connect_governance.grants import issue_grant  # noqa: E402
-from connect_governance.work_requests import create_work_request  # noqa: E402
-from toolconnect.policy import CedarPolicyEngine  # noqa: E402
-from toolconnect.service import ToolConnectService  # noqa: E402
-from toolconnect.store import SqliteStore  # noqa: E402
 
 # Genesis is recorded in the past so the founding authority it grants is
 # effective at any real wall-clock "now" (the kernel evaluates intake at the
@@ -74,7 +50,17 @@ IDS = {
 }
 
 
-def seed_governance(gov_path) -> None:
+def seed_governance(gov_path):
+    from connect_governance.db.models import ExecutionGrantRecord
+    from connect_governance.db.session import (
+        create_all,
+        make_engine,
+        session_factory,
+    )
+    from connect_governance.genesis import GenesisRequest, initialize_deployment
+    from connect_governance.grants import issue_grant
+    from connect_governance.work_requests import create_work_request
+
     engine = make_engine(f"sqlite+pysqlite:///{gov_path}")
     create_all(engine)
     with session_factory(engine)() as session:
@@ -142,6 +128,15 @@ def seed_governance(gov_path) -> None:
 
 
 def seed_agentconnect(ac_path, artifact_dir) -> None:
+    from agentconnect.core import AgentConnectService, CreateTaskRequest
+    from agentconnect.core.execution_record_store import ExecutionRecordLedger
+    from agentconnect.core.execution_records import (
+        ExecutorIdentity,
+        ProviderEnforcementRef,
+        ToolIdentity,
+        build_execution_record,
+    )
+
     svc = AgentConnectService.create(
         db_path=str(ac_path), artifact_dir=str(artifact_dir), workers=[]
     )
@@ -176,6 +171,10 @@ def seed_agentconnect(ac_path, artifact_dir) -> None:
 
 
 def seed_toolconnect(tc_path, grant_artifact) -> None:
+    from toolconnect.policy import CedarPolicyEngine
+    from toolconnect.service import ToolConnectService
+    from toolconnect.store import SqliteStore
+
     store = SqliteStore(tc_path)
     svc = ToolConnectService(store, CedarPolicyEngine(""), gov_trust_root_pem=PUBLIC_KEY_PEM)
     result = svc.redeem_governance_grant(
