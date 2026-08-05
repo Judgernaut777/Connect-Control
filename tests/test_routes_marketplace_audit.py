@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 import pytest
+
+# The seeded fixture builds all three real stores.
+pytest.importorskip("connect_governance", reason="audit extra not installed")
+pytest.importorskip("agentconnect.core", reason="audit extra not installed")
+pytest.importorskip("toolconnect", reason="audit extra not installed")
+
 from fastapi.testclient import TestClient
 
 from connect_control.app import create_app
