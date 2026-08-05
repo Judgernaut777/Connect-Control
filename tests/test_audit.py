@@ -12,6 +12,11 @@ import sqlite3
 
 import pytest
 
+# These tests build real stores with the sibling planes' own libraries.
+pytest.importorskip("connect_governance", reason="audit extra not installed")
+pytest.importorskip("agentconnect.core", reason="audit extra not installed")
+pytest.importorskip("toolconnect", reason="audit extra not installed")
+
 from connect_control.audit import open_readonly, resolve
 
 from tests.conftest import IDS
