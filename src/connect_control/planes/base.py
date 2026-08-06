@@ -88,6 +88,21 @@ class PlaneClient:
             body=body,
         )
 
+    def get(self, path: str) -> PlaneHealth:
+        """GET any read-only route on the plane and report it verbatim.
+
+        Same honesty discipline as :meth:`health`: the plane's answer —
+        including 404 — is reported as-is, and a connection failure is an
+        error report, never a fabricated payload. Used by the marketplace
+        surface for ToolConnect's catalog (R7).
+        """
+        saved = self.health_path
+        try:
+            self.health_path = path
+            return self.health()
+        finally:
+            self.health_path = saved
+
     def mutate(self, *_args: Any, **_kwargs: Any) -> None:
         """No mutation path exists yet. This always raises."""
         raise MutationNotImplemented(

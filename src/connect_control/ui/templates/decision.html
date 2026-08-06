@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Decision {{ record_id }} — Connect Control{% endblock %}
+{% block content %}
+<h1>Decision Record <code>{{ record_id }}</code></h1>
+<p>The explanation below is computed on read from the stored record — it is a
+projection over evidence, never the record itself.</p>
+
+<h2>Operator view</h2>
+<table>
+  {% for key, value in operator.items() %}
+  <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Stored decision</h2>
+<table>
+  <tr><th>outcome</th><td><strong>{{ decision.outcome }}</strong></td></tr>
+  {% for key, value in decision.items() if key != "outcome" %}
+  <tr><th>{{ key }}</th><td><code>{{ value }}</code></td></tr>
+  {% endfor %}
+</table>
+
+<details>
+  <summary>Proof view (expert)</summary>
+  <pre>{{ proof | tojson(indent=2) }}</pre>
+</details>
+<details>
+  <summary>Decision request (canonical)</summary>
+  <pre>{{ request | tojson(indent=2) }}</pre>
+</details>
+
+<p><a href="/audit/{{ record_id }}">Open the linked audit trail for this record</a></p>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Audit trail {{ trail.identifier }} — Connect Control{% endblock %}
+{% block content %}
+<h1>Linked audit trail</h1>
+<p>Identifier: <code>{{ trail.identifier }}</code>. Resolved read-only across the
+governance, AgentConnect, and ToolConnect stores (Option-B audit projection,
+docs/ARCHITECTURE.md).</p>
+
+{% if trail.degraded %}
+<div class="banner">
+  <strong>Degraded surfaces (said, not hidden):</strong>
+  <ul>{% for note in trail.degraded %}<li>{{ note }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<h2>Chain verification on read</h2>
+<table>
+  <tr><th>chain</th><th>status</th><th>detail</th></tr>
+  {% for chain in trail.chain_statuses %}
+  <tr>
+    <td>{{ chain.chain }}</td>
+    <td class="{{ 'ok' if chain.status == 'ok' else ('broken' if chain.status == 'broken' else 'degraded') }}">{{ chain.status }}</td>
+    <td>{{ chain.detail }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% if trail.grants %}
+<h3>Grant artifact checks</h3>
+{% for grant in trail.grants %}
+<p class="{{ 'ok' if grant.artifact_check.ok else 'broken' }}">
+  Grant <code>{{ grant.id }}</code>: artifact
+  {{ "parses, key ids match" if grant.artifact_check.ok else "CHECK FAILED" }}.
+  <br><small>{{ grant.artifact_check.note }}</small>
+</p>
+{% endfor %}
+{% endif %}
+
+{% if trail.found %}
+<h2>Timeline</h2>
+<ol class="timeline">
+  {% for event in trail.timeline %}
+  <li>
+    <strong>{{ event.kind }}</strong> — {{ event.summary }}
+    {% if event.links %}
+    <br><small>links:
+      {% for key, value in event.links.items() %}
+        <a href="/audit/{{ value }}">{{ key }}=<code>{{ value }}</code></a>
+      {% endfor %}
+    </small>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<p>No records found for this identifier in any configured store.</p>
+{% endif %}
+{% endblock %}
