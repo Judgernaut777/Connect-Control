@@ -5,14 +5,16 @@ The user-facing **control-plane application** of the
 guided onboarding, budget visibility, and marketplace discovery — the thin
 **Control plane** made usable.
 
-> **Status: R7 — the four UI surfaces and the linked audit trail landed.**
-> What exists today: the C0 scaffold (`/healthz`, configuration echo,
-> read-only plane health probes, honest 501s on the plane-proxy path) **plus**
-> server-rendered surfaces for Work Request creation/status, Decision +
-> explanation, minimal marketplace/provider activation, and the linked audit
-> trail with chain verification on read. Workspaces, onboarding, and budgets
-> **do not exist**. See [docs/ROADMAP.md](docs/ROADMAP.md) and the Option-B
-> exception in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+> **Status: R8 — the curated marketplace surface landed on top of R7's four
+> UI surfaces and linked audit trail.** What exists today: the C0 scaffold
+> (`/healthz`, configuration echo, read-only plane health probes, honest 501s
+> on the plane-proxy path) **plus** server-rendered surfaces for Work Request
+> creation/status, Decision + explanation, the curated marketplace
+> (operator-authored listings, governed provider activation, fail-closed
+> enforcement classification badge), and the linked audit trail with chain
+> verification on read. Workspaces, onboarding, and budgets **do not exist**.
+> See [docs/ROADMAP.md](docs/ROADMAP.md) and the Option-B exception in
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 This repository exists by decision of
 [ADR 0002](https://github.com/Judgernaut777/Connect/blob/main/docs/adr/0002-control-plane-repository-boundary.md)
@@ -35,8 +37,9 @@ the ecosystem's versioned contracts, and — when mutation is eventually built �
 every write will go through the owning plane's public API too. **Never direct
 database or filesystem access to another plane's state** — with exactly one
 documented, temporary exception: the R7 read-only audit projection and the
-governance in-process intake, recorded with its expiry condition in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#the-r7-option-b-exception).
+governance in-process intake (extended in R8 to the marketplace's listing
+reads and listing/activation mutations), recorded with its expiry condition
+in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#the-r7-option-b-exception).
 
 ## What Connect-Control will not do
 
@@ -69,12 +72,15 @@ src/connect_control/
     audit/          R7 read-only audit projection: single-identifier join
                     across the governance/AgentConnect/ToolConnect SQLite
                     stores (mode=ro) + chain verification on read
-    routes/         the four R7 surfaces:
-                    work_requests.py  S1 creation (the one mutation, through
+    routes/         the four R7 surfaces (S3 extended by R8):
+                    work_requests.py  S1 creation (a mutation, through
                                       Connect-Governance's kernel-evaluated
                                       intake) + status
                     decisions.py      S2 decision + explanation (read-only)
-                    marketplace.py    S3 minimal catalog/provider activation
+                    marketplace.py    S3 curated marketplace (R8): listings,
+                                      governed activation (mutations through
+                                      connect_governance.providers),
+                                      fail-closed classification badge
                     audit.py          S4 linked audit trail timeline
     ui/templates/   Jinja2 server-rendered pages for S1–S4
 docs/
@@ -88,14 +94,14 @@ Plane endpoints default to the ecosystem port registry
 AgentConnect `127.0.0.1:8790`, BrainConnect `127.0.0.1:8787`,
 ComputeConnect `:8090`, ToolConnect `127.0.0.1:8095`.
 
-## R7 dependencies (read before installing)
+## Sibling dependencies (read before installing)
 
-The app runs with **no sibling packages installed**: every R7 surface degrades
-honestly and says why (503s on S1/S2, labeled degraded panels on S3/S4). That
-is a feature, not a fallback — it is the same honesty idiom as the scaffold's
-501s.
+The app runs with **no sibling packages installed**: every surface degrades
+honestly and says why (503s on the mutation/read surfaces, labeled degraded
+panels elsewhere). That is a feature, not a fallback — it is the same honesty
+idiom as the scaffold's 501s.
 
-Full functionality needs the sibling planes' R7 work, installable as the
+Full functionality needs the sibling planes' R7+R8 work, installable as the
 optional `audit` extra (plain package names, deliberately **not** pinned to
 branch URLs):
 
@@ -103,19 +109,19 @@ branch URLs):
 pip install -e ".[dev,audit]"
 ```
 
-Until the sibling R7 PRs merge and release, install them from their branches
+Until the sibling R8 PRs merge and release, install them from their branches
 for local testing:
 
 ```bash
-pip install "connect-governance[app] @ git+https://github.com/Judgernaut777/Connect-Governance.git@r7-audit-trail"
-pip install "agentconnect-core @ git+https://github.com/Judgernaut777/AgentConnect.git@r7-audit-trail#subdirectory=packages/agentconnect-core"
-pip install "toolconnect @ git+https://github.com/Judgernaut777/ToolConnect.git@r7-revocation-propagation"
+pip install "connect-governance[app] @ git+https://github.com/Judgernaut777/Connect-Governance.git@r8-marketplace"
+pip install "agentconnect-core @ git+https://github.com/Judgernaut777/AgentConnect.git@main#subdirectory=packages/agentconnect-core"
+pip install "toolconnect @ git+https://github.com/Judgernaut777/ToolConnect.git@r8-provider-classification"
 ```
 
-Merge order: Connect-Governance `r7-audit-trail` (work-request intake, query
-layer, ADR-052 issuance) and AgentConnect `r7-audit-trail` (read-side chain
-verification) first; ToolConnect `r7-revocation-propagation` next; this repo's
-`r7-four-surfaces` last — it consumes all three but degrades without any.
+R8 merge order: Connect-Governance `r8-marketplace` (provider listings,
+governed activation, query layer) and ToolConnect
+`r8-provider-classification` (`/health` trust-root posture) first; this
+repo's `r8-marketplace` last — it consumes both but degrades without any.
 
 The audit projection is pointed at the three stores with:
 
@@ -128,7 +134,7 @@ export CONNECT_CONTROL_TOOLCONNECT_DB_PATH=/path/to/toolconnect.db
 ## Development
 
 ```bash
-pip install -e ".[dev]"   # Python 3.11+; add ,audit for the R7 surfaces
+pip install -e ".[dev]"   # Python 3.11+; add ,audit for the sibling-backed surfaces
 pytest
 connect-control           # serves on http://127.0.0.1:8800
 ```
