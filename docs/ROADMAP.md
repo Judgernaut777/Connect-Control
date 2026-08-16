@@ -44,6 +44,35 @@ pulled them together):
 - Expiry owed: replace the audit projection's direct reads with per-plane
       record-read HTTP APIs (**R8/R9**, Option A), then delete the exception.
 
+## R8 — curated marketplace surface ✅ done (2026-08)
+
+The ecosystem's R8 milestone (RA v0.2 §9, ADR-039/040/041/055) extended S3
+from the R7 minimal view to the curated marketplace:
+
+- [x] **Curated listings, operator-authored** — `POST /marketplace/listings`
+      through `connect_governance.providers.create_listing`
+      (kernel-evaluated, `provider.list` authority, fail-closed). There is no
+      self-publishing flow (ADR-040). An `enforcing` listing without
+      classification evidence is refused before kernel evaluation (ADR-041).
+- [x] **Governed provider activation** — `POST /marketplace/activate`
+      through `connect_governance.providers.activate_provider`
+      (`provider.activate` authority); operator-triggered from the UI. A
+      refusal rolls everything back and answers 422 with the Kernel's reason.
+- [x] **Enforcement classification badge, fail-closed** — `enforcing` is
+      displayed only with every evidence leg observable (stored evidence,
+      active activation + decision record, live ToolConnect `/health`
+      trust-root and audit-chain posture, observable `provider_enforcement`
+      records); any gap degrades to `unverified` with the missing evidence
+      named. Monitor-only is never presented as preventative (ADR-039).
+- [x] Listing-driven reads replace the R7 hard-coded `provider_id` query
+      (listings/activations via `connect_governance.queries`; grants per
+      listed provider via the read-only projection — the Option-B exception
+      extended, same expiry condition, see ARCHITECTURE.md).
+- Deferred per ADR-040: third-party publishing, pricing/entitlements
+      (OD-010 open), certification programs (OD-011 open), reviews/rankings.
+      The disable/revoke lifecycle is deferred; Connect-Governance reserves
+      the `provider.deactivate` authority key.
+
 ## C1 — read-only workspace & planes status dashboard *(not built)*
 
 - Live plane health and version display, built on the C0 probes.
@@ -73,12 +102,17 @@ pulled them together):
   *enforcement* stays in the Work plane; this app displays, it does not
   enforce. Mutation (setting budgets) is a separate, later, API-mediated step.
 
-## C4 — marketplace discovery *(not built)*
+## C4 — marketplace discovery *(partially built — the curated slice landed in R8)*
 
-- Neutral discovery and comparison per Connect's MARKETPLACE_ARCHITECTURE.md,
+- [x] Curated marketplace (R8): operator-authored listings, governed
+      activation, fail-closed enforcement classification badge — see the R8
+      entry above. Real listings are browsable; curation is by the operator,
+      and there is no self-publishing flow (ADR-040).
+- [ ] Neutral discovery and comparison per Connect's MARKETPLACE_ARCHITECTURE.md,
   shipped as a **module of this application** (ADR 0002 placement note), not a
   separate service.
-- Neutral sorting, transparent verification labels, no pay-to-rank, ever.
-- Done means: browsing real listings. Transactions — the only revenue event —
-  come after discovery, with the transparency commitments in TRANSPARENCY.md
-  enforced in code, not just prose.
+- [ ] Neutral sorting, transparent verification labels, no pay-to-rank, ever.
+- Done means: browsing real listings — met for the curated slice; the neutral
+  discovery/comparison surface is still open. Transactions — the only revenue
+  event — come after discovery, with the transparency commitments in
+  TRANSPARENCY.md enforced in code, not just prose.
