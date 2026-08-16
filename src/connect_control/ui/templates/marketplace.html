@@ -1,9 +1,125 @@
 {% extends "base.html" %}
 {% block title %}Marketplace — Connect Control{% endblock %}
 {% block content %}
-<h1>Marketplace &amp; provider activation</h1>
-<p>Minimal surface for R7 — the full marketplace is R8. Everything here is
-read-only and reports exactly what it observed.</p>
+<h1>Curated marketplace &amp; provider activation</h1>
+<p>The marketplace is curated (ADR-040): listings are written by an operator
+holding <code>provider.list</code> authority, and activation is a governed act,
+kernel-evaluated with <code>provider.activate</code> authority. There is no
+self-publishing flow. Everything read-only here reports exactly what it
+observed; a refused mutation persists nothing.</p>
+
+<h2>Provider listings</h2>
+{% if not listings_available %}
+<p class="degraded">Degraded: {{ listings_reason }}</p>
+{% elif listings %}
+<table>
+  <tr><th>listing</th><th>provider id</th><th>declared classification</th>
+      <th>badge</th><th>evidence</th><th>activation</th></tr>
+  {% for listing in listings %}
+  <tr>
+    <td>{{ listing.name }}<br><code>{{ listing.id }}</code></td>
+    <td><code>{{ listing.provider_id }}</code></td>
+    <td>{{ listing.declared }}
+        {% if listing.evidence %}<br><small>evidence:
+        <code>{{ listing.evidence | tojson }}</code></small>{% endif %}</td>
+    <td>
+      {% if listing.classification.badge == "enforcing" %}
+      <strong class="ok">enforcing</strong>
+      {% elif listing.classification.badge == "monitor-only" %}
+      <strong>monitor-only</strong>
+      {% else %}
+      <strong class="degraded">unverified</strong>
+      {% endif %}
+      {% if listing.classification.note %}<br><small>{{ listing.classification.note }}</small>{% endif %}
+      {% if listing.classification.missing %}
+      <br><small>missing: {{ listing.classification.missing | join("; ") }}</small>
+      {% endif %}
+    </td>
+    <td>
+      {% for act in listing.activations %}
+      {{ act.state }} — <code>{{ act.id }}</code><br>
+      decision <a href="/decisions/{{ act.decision_record_id }}"><code>{{ act.decision_record_id }}</code></a><br>
+      {% else %}—{% endfor %}
+      {% if listing.declared == "enforcing" %}
+      <a href="/audit/{{ listing.id }}">audit trail</a>
+      {% endif %}
+    </td>
+    <td>
+      {% if listing.activations | selectattr("state", "equalto", "active") | list %}
+      active
+      {% else %}
+      <form class="activate-form" data-listing="{{ listing.id }}">
+        <input name="activated_by_principal_id" placeholder="operator principal id" required>
+        <button type="submit">Activate (kernel-evaluated)</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+<pre id="activate-result"></pre>
+<script>
+document.querySelectorAll(".activate-form").forEach((form) => {
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const response = await fetch("/marketplace/activate", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        listing_id: form.dataset.listing,
+        activated_by_principal_id: form.activated_by_principal_id.value,
+      }),
+    });
+    document.getElementById("activate-result").textContent =
+      response.status + "\n" + JSON.stringify(await response.json(), null, 2);
+    if (response.status === 201) { location.reload(); }
+  });
+});
+</script>
+{% else %}
+<p>No curated provider listings yet.</p>
+{% endif %}
+
+{% if listings_available %}
+<h2>New listing (operator-curated)</h2>
+<form id="listing-form">
+  <p><label>Listing id <input name="listing_id" required></label>
+     <label>Provider id <input name="provider_id" required></label>
+     <label>Name <input name="name" required></label></p>
+  <p><label>Listed by principal id <input name="listed_by_principal_id" required></label>
+     <label>Classification
+       <select name="enforcement_classification">
+         <option value="monitor_only">monitor_only</option>
+         <option value="enforcing">enforcing</option>
+       </select></label></p>
+  <p><label>Metadata (JSON) <input name="metadata" value="{}"></label>
+     <label>Classification evidence (JSON) <input name="classification_evidence" value="{}"></label></p>
+  <button type="submit">Create listing (kernel-evaluated)</button>
+</form>
+<p><small>An <code>enforcing</code> listing with empty classification evidence
+is refused before kernel evaluation (ADR-041).</small></p>
+<pre id="listing-result"></pre>
+<script>
+document.getElementById("listing-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const response = await fetch("/marketplace/listings", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      listing_id: form.listing_id.value,
+      provider_id: form.provider_id.value,
+      name: form.name.value,
+      listed_by_principal_id: form.listed_by_principal_id.value,
+      enforcement_classification: form.enforcement_classification.value,
+      metadata: JSON.parse(form.metadata.value || "{}"),
+      classification_evidence: JSON.parse(form.classification_evidence.value || "{}"),
+    }),
+  });
+  document.getElementById("listing-result").textContent =
+    response.status + "\n" + JSON.stringify(await response.json(), null, 2);
+  if (response.status === 201) { location.reload(); }
+});
+</script>
+{% endif %}
 
 <h2>ToolConnect health (live probe)</h2>
 {% if health and health.reachable %}
@@ -21,17 +137,28 @@ read-only and reports exactly what it observed.</p>
 <p class="degraded">Catalog unread: {{ catalog.error if catalog else "no client configured" }}</p>
 {% endif %}
 
-<h2>Provider activation (grants issued for provider_id=toolconnect)</h2>
-{% if not activation.configured %}
-<p class="degraded">Degraded: {{ activation.reason }}</p>
-{% elif activation.error %}
-<p class="degraded">{{ activation.error }}</p>
-{% elif activation.grants %}
+<h2>Enforcement evidence (provider_enforcement records)</h2>
+{% if enforcement.observed %}
+<p class="ok">{{ enforcement.count }} provider_enforcement record(s) observed
+via {{ enforcement.source }}.</p>
+{% else %}
+<p class="degraded">No provider_enforcement records observable
+({{ enforcement.detail or "none recorded" }}).</p>
+{% endif %}
+
+<h2>Execution grants issued to listed providers</h2>
+{% if not grants.configured %}
+<p class="degraded">Degraded: no governance DB path configured
+(CONNECT_CONTROL_GOVERNANCE_DB_PATH).</p>
+{% elif grants.error %}
+<p class="degraded">{{ grants.error }}</p>
+{% elif grants.grants %}
 <table>
-  <tr><th>grant id</th><th>decision</th><th>issuer key</th><th>issued at</th><th>window</th></tr>
-  {% for grant in activation.grants %}
+  <tr><th>grant id</th><th>provider</th><th>decision</th><th>issuer key</th><th>issued at</th><th>window</th></tr>
+  {% for grant in grants.grants %}
   <tr>
     <td><a href="/audit/{{ grant.id }}"><code>{{ grant.id }}</code></a></td>
+    <td><code>{{ grant.provider_id }}</code></td>
     <td><a href="/decisions/{{ grant.decision_record_id }}"><code>{{ grant.decision_record_id }}</code></a></td>
     <td><code>{{ grant.issuer_key_id }}</code></td>
     <td>{{ grant.issued_at }}</td>
@@ -40,7 +167,7 @@ read-only and reports exactly what it observed.</p>
   {% endfor %}
 </table>
 {% else %}
-<p>No execution grants issued to the toolconnect provider yet.</p>
+<p>No execution grants issued to the listed providers yet.</p>
 {% endif %}
 
 <h2>Revocation list (ADR-052)</h2>
@@ -52,11 +179,11 @@ issued at {{ revocation_meta.issued_at }}.</p>
 {% else %}
 <p class="degraded">{{ revocation_meta.reason }}</p>
 {% endif %}
-{% if activation.configured and activation.revocation_lists %}
+{% if grants.configured and grants.revocation_lists %}
 <p>Issued lists recorded by governance:</p>
 <table>
   <tr><th>list id</th><th>issuer key</th><th>issued at</th><th>supersedes</th></tr>
-  {% for rl in activation.revocation_lists %}
+  {% for rl in grants.revocation_lists %}
   <tr><td><code>{{ rl.list_id }}</code></td><td><code>{{ rl.issuer_key_id }}</code></td>
       <td>{{ rl.issued_at }}</td><td><code>{{ rl.supersedes or "—" }}</code></td></tr>
   {% endfor %}
