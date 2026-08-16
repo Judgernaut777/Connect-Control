@@ -1,6 +1,7 @@
 # Connect-Control architecture (initial)
 
-> **Status: design + scaffold + the R7 surfaces.** The shape below is the
+> **Status: design + scaffold + the R7 surfaces + the R8 curated
+> marketplace.** The shape below is the
 > intended architecture. Only the pieces marked *(built)* exist in code;
 > everything else is the design the scaffold converges on, per the ecosystem
 > honesty convention. R7 added the four UI surfaces and — with the documented,
@@ -48,11 +49,24 @@ path for Work Request creation.
    re-verified either: the provider verified them at redemption and recorded
    that fact; the projection checks only that the stored canonical bytes
    still parse and that key ids match.
-3. The **one mutation** (S1, Work Request creation) goes through
-   `connect_governance.work_requests.create_work_request` imported in-process
-   against the governance DB — the governance package's own kernel-evaluated,
-   fail-closed intake — **never raw SQL**. A Kernel refusal rolls the whole
-   transaction back and surfaces as a 4xx with the reason.
+3. The **mutations** go through the governance package's own
+   kernel-evaluated, fail-closed intake functions imported in-process
+   against the governance DB — **never raw SQL**. A Kernel refusal rolls the
+   whole transaction back and surfaces as a 4xx with the reason. R7 added
+   the first (S1, Work Request creation, via
+   `connect_governance.work_requests.create_work_request`); R8 adds the
+   second: the curated marketplace's listing and activation mutations
+   (`POST /marketplace/listings`, `POST /marketplace/activate`) via
+   `connect_governance.providers.create_listing` / `activate_provider`.
+4. R8 also extends the **read** scope of the same exception: the marketplace
+   reads `provider_listings` / `provider_activations` through
+   `connect_governance.queries` (`list_listings`, `activations_for_listing`,
+   `active_activation`) in-process, and execution grants for the listed
+   providers through the read-only projection. Keeping the Option-B
+   projection for these reads in R8 — the named migration window — is a
+   conscious deferral (recorded in Connect-Governance ADR-055): the
+   governance plane still exposes no record-read HTTP API, so there is
+   nothing to migrate to yet. The expiry condition below is unchanged.
 
 **Why this is acceptable for the slice.** Audit must survive plane outage (a
 plane that is down cannot serve its own evidence); every needed index already
@@ -106,10 +120,11 @@ FastAPI application factory (`connect_control.app.create_app`) with:
   Request creation is *not* on this path: it is a governance-plane operation
   through the documented Option-B in-process intake, not a plane proxy.)
 
-### The four R7 surfaces *(built)*
+### The four R7 surfaces *(built)*, S3 extended by R8
 
 Server-rendered (Jinja2 — a disclosed new dependency; no frontend framework,
-consistent with the scaffold), all read-only except S1's creation:
+consistent with the scaffold), all read-only except S1's creation and R8's
+marketplace listing/activation mutations:
 
 - **S1 Work Request creation + status** (`/work-requests`) — the one mutation,
   through Connect-Governance's kernel-evaluated intake (see the Option-B
@@ -119,11 +134,21 @@ consistent with the scaffold), all read-only except S1's creation:
   stored record via `connect_governance.decisions.load_record` and renders
   `connect_governance.explanation.explain`, a pure projection computed on
   read.
-- **S3 Marketplace / provider activation (minimal)** (`/marketplace`) —
-  ToolConnect's live health + catalog over HTTP through the plane-client
-  idiom, plus activation derived from grants issued for
-  `provider_id='toolconnect'` and the ADR-052 revocation-list meta. The full
-  marketplace is R8.
+- **S3 Curated marketplace / provider activation** (`/marketplace`, R8) —
+  listings and activations read from the governance store through
+  `connect_governance.queries` (the extended Option-B exception); operator
+  listing creation and provider activation through
+  `connect_governance.providers` (kernel-evaluated, fail-closed; the second
+  documented mutation). No self-publishing flow exists (ADR-040). The
+  classification badge is fail-closed: a listing declaring `enforcing`
+  renders as **enforcing** only when its stored classification evidence, an
+  active activation with its decision record, live ToolConnect `/health`
+  (`gov_trust_root.configured` and `audit_chain_ok` both true), and
+  observable `provider_enforcement` records are all present; any missing leg
+  degrades the badge to **unverified** with the gap named. Monitor-only
+  listings render as monitor-only without the live-evidence bar and are
+  never presented as preventative controls (ADR-039). ToolConnect's live
+  health + catalog and the ADR-052 revocation-list meta are still shown.
 - **S4 Linked audit trail** (`/audit/{identifier}`) — one identifier (any of
   the four linkage ids) resolves to the joined trail across the three stores:
   work request → decision → grant → redemption / provider-enforcement →
