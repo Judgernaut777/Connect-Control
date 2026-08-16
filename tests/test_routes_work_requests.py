@@ -92,9 +92,10 @@ def test_denied_creation_rolls_everything_back(client, gov_db) -> None:
     with session_factory(engine)() as session:
         assert session.get(WorkRequest, "wr-3") is None
         # Fail-closed: the recorded refusal Decision did not survive either —
-        # only the seeded intake record (dr-create-wr-1) remains.
+        # only the seeded records remain (the R8 curated listing's intake
+        # Decision plus the Work Request intake Decision).
         records = session.scalars(select(DecisionRecord)).all()
-        assert [r.id for r in records] == ["dr-create-wr-1"]
+        assert [r.id for r in records] == ["dr-list-lst-1", "dr-create-wr-1"]
         revisions = session.scalars(select(WorkRequestRevision)).all()
         assert all(r.work_request_id != "wr-3" for r in revisions)
 
