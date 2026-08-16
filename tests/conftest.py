@@ -51,7 +51,10 @@ IDS = {
 
 
 def seed_governance(gov_path):
-    from connect_governance.db.models import ExecutionGrantRecord
+    from connect_governance.db.models import (
+        AuthorityRelationship,
+        ExecutionGrantRecord,
+    )
     from connect_governance.db.session import (
         create_all,
         make_engine,
@@ -59,6 +62,7 @@ def seed_governance(gov_path):
     )
     from connect_governance.genesis import GenesisRequest, initialize_deployment
     from connect_governance.grants import issue_grant
+    from connect_governance.providers import create_listing
     from connect_governance.work_requests import create_work_request
 
     engine = make_engine(f"sqlite+pysqlite:///{gov_path}")
@@ -83,6 +87,42 @@ def seed_governance(gov_path):
                 authority_id="auth-genesis",
                 recorded_at=T,
             ),
+        )
+        # R8: the operator principal holds the marketplace curation
+        # vocabulary (provider.list / provider.activate), recorded as the
+        # ordinary AuthorityRelationship row such a grant would write —
+        # the same pattern as Connect-Governance's own provider fixtures.
+        session.add(
+            AuthorityRelationship(
+                id="auth-operator",
+                relationship_type="OperatorGrant",
+                principal_id="person-1",
+                target_id="org-1",
+                granted_authorities=json.dumps(
+                    ["provider.list", "provider.activate"]
+                ),
+                effective_from=T,
+                effective_until=None,
+                revoked_at=None,
+                recorded_at=T,
+                provenance="auth-genesis",
+            )
+        )
+        session.flush()
+        # One curated listing for the seeded toolconnect provider
+        # (monitor-only: the seeded deployment's classification declaration).
+        create_listing(
+            session,
+            listing_id="lst-1",
+            provider_id="toolconnect",
+            name="ToolConnect",
+            metadata={"capabilities": ["tool.invoke"], "version": "0.1.0"},
+            enforcement_classification="monitor_only",
+            classification_evidence={},
+            listed_by_principal_id="person-1",
+            transition_id="t-list-lst-1",
+            decision_record_id="dr-list-lst-1",
+            recorded_at=T,
         )
         create_work_request(
             session,
